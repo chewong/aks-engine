@@ -11240,7 +11240,7 @@ metadata:
   labels:
     addonmanager.kubernetes.io/mode: Reconcile
 ---
-# Source: azurefile-csi-driver/templates/serviceaccount-csi-azurefile-controller.yaml
+# Source: azurefile-csi-driver/templates/serviceaccount-csi-azurefile-node.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -11248,47 +11248,6 @@ metadata:
   namespace: kube-system
   labels:
     addonmanager.kubernetes.io/mode: Reconcile
----
-# Source: azurefile-csi-driver/templates/crd-csi-node-info.yaml
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  creationTimestamp: null
-  name: csinodeinfos.csi.storage.k8s.io
-  labels:
-    addonmanager.kubernetes.io/mode: Reconcile
-spec:
-  group: csi.storage.k8s.io
-  names:
-    kind: CSINodeInfo
-    plural: csinodeinfos
-  scope: Cluster
-  validation:
-    openAPIV3Schema:
-      properties:
-        csiDrivers:
-          description: List of CSI drivers running on the node and their properties.
-          items:
-            properties:
-              driver:
-                description: The CSI driver that this object refers to.
-                type: string
-              nodeID:
-                description: The node from the driver point of view.
-                type: string
-              topologyKeys:
-                description: List of keys supported by the driver.
-                items:
-                  type: string
-                type: array
-          type: array
-  version: v1alpha1
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
 kind: ClusterRole
@@ -11319,6 +11278,12 @@ rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["get", "list"]
 ---
 # Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
 kind: ClusterRole
@@ -11339,25 +11304,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["volumeattachments"]
-    verbs: ["get", "list", "watch", "update"]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
----
-# Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: azurefile-cluster-driver-registrar-role
-  labels:
-    addonmanager.kubernetes.io/mode: Reconcile
-rules:
-  - apiGroups: ["apiextensions.k8s.io"]
-    resources: ["customresourcedefinitions"]
-    verbs: ["create", "list", "watch", "delete"]
-  - apiGroups: ["csi.storage.k8s.io"]
-    resources: ["csidrivers"]
-    verbs: ["create", "delete"]
+    verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
@@ -11399,7 +11346,10 @@ rules:
     verbs: ["create", "list", "watch", "delete"]
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["update"]
 ---
 # Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
 kind: ClusterRole
@@ -11430,15 +11380,23 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: azure-cloud-provider-secret-getter
   namespace: kube-system
-  labels:
-    addonmanager.kubernetes.io/mode: Reconcile
+  name: csi-azurefile-controller-secret-role
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["azure-cloud-provider"]
-    verbs: ["get"]
+    verbs: ["get", "list", "create"]
+---
+# Source: azurefile-csi-driver/templates/rbac-csi-azurefile-node.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: kube-system
+  name: csi-azurefile-node-secret-role
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
 ---
 # Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
 kind: ClusterRoleBinding
@@ -11472,23 +11430,6 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: azurefile-external-attacher-role
-  apiGroup: rbac.authorization.k8s.io
----
-# Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: azurefile-csi-driver-registrar-binding
-  namespace: kube-system
-  labels:
-    addonmanager.kubernetes.io/mode: Reconcile
-subjects:
-  - kind: ServiceAccount
-    name: csi-azurefile-controller-sa
-    namespace: kube-system
-roleRef:
-  kind: ClusterRole
-  name: azurefile-cluster-driver-registrar-role
   apiGroup: rbac.authorization.k8s.io
 ---
 # Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
@@ -11529,7 +11470,7 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: azure-cloud-provider-secret-getter-controller
+  name: csi-azurefile-controller-secret-binding
   namespace: kube-system
   labels:
     addonmanager.kubernetes.io/mode: Reconcile
@@ -11540,13 +11481,13 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: azure-cloud-provider-secret-getter
+  name: csi-azurefile-controller-secret-role
 ---
-# Source: azurefile-csi-driver/templates/rbac-csi-azurefile-controller.yaml
+# Source: azurefile-csi-driver/templates/rbac-csi-azurefile-node.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: azure-cloud-provider-secret-getter-node
+  name: csi-azurefile-node-secret-binding
   namespace: kube-system
   labels:
     addonmanager.kubernetes.io/mode: Reconcile
@@ -11557,7 +11498,7 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: azure-cloud-provider-secret-getter
+  name: csi-azurefile-node-secret-role
 {{if and (IsKubernetesVersionGe "1.18.0") HasWindows}}
 ---
 # Source: azurefile-csi-driver/templates/csi-azurefile-node-windows.yaml
@@ -11577,6 +11518,7 @@ spec:
       labels:
         app: csi-azurefile-node-windows
     spec:
+      serviceAccountName: csi-azurefile-node-sa
       nodeSelector:
         kubernetes.io/os: windows
       priorityClassName: system-node-critical
@@ -11616,6 +11558,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: kubelet-dir
               mountPath: "C:\\var\\lib\\kubelet"
@@ -11650,7 +11593,11 @@ spec:
             periodSeconds: 30
           env:
             - name: AZURE_CREDENTIAL_FILE
-              value: "C:\\k\\azure.json"
+              valueFrom:
+                configMapKeyRef:
+                  name: azure-cred-file
+                  key: path-windows
+                  optional: true
             - name: CSI_ENDPOINT
               value: unix://C:\\csi\\csi.sock
             - name: KUBE_NODE_NAME
@@ -11764,6 +11711,7 @@ spec:
               value: /csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
               value: /var/lib/kubelet/plugins/file.csi.azure.com/csi.sock
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -11796,7 +11744,11 @@ spec:
             periodSeconds: 30
           env:
             - name: AZURE_CREDENTIAL_FILE
-              value: "/etc/kubernetes/azure.json"
+              valueFrom:
+                configMapKeyRef:
+                  name: azure-cred-file
+                  key: path
+                  optional: true
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
             - name: KUBE_NODE_NAME
@@ -11804,6 +11756,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           volumeMounts:
@@ -11910,10 +11863,10 @@ spec:
             - "-csi-address=$(ADDRESS)"
             - "-timeout=120s"
             - "-leader-election"
-            - "-leader-election-type=leases"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
+          imagePullPolicy: IfNotPresent
           volumeMounts:
           - mountPath: /csi
             name: socket-dir
@@ -11955,6 +11908,7 @@ spec:
           env:
             - name: ADDRESS
               value: /csi/csi.sock
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -11973,6 +11927,7 @@ spec:
             - --connection-timeout=3s
             - --health-port=29612
             - --v=5
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -11988,7 +11943,6 @@ spec:
           args:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--nodeid=$(KUBE_NODE_NAME)"
           ports:
             - containerPort: 29612
               name: healthz
@@ -12006,9 +11960,14 @@ spec:
             periodSeconds: 30
           env:
             - name: AZURE_CREDENTIAL_FILE
-              value: "/etc/kubernetes/azure.json"
+              valueFrom:
+                configMapKeyRef:
+                  name: azure-cred-file
+                  key: path
+                  optional: true
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
