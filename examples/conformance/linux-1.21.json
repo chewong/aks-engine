@@ -1,0 +1,38 @@
+{
+  "apiVersion": "vlabs",
+  "properties": {
+    "orchestratorProfile": {
+      "orchestratorRelease": "1.21",
+      "kubernetesConfig": {
+        "kubeletConfig": {
+          "--feature-gates": "ExecProbeTimeout=true"
+        },
+        "apiServerConfig": {
+          "--service-account-issuer": "https://kubernetes.default.svc.cluster.local"
+        }
+      }
+    },
+    "masterProfile": {
+      "count": 1,
+      "vmSize": "Standard_D2s_v3"
+    },
+    "agentPoolProfiles": [
+      {
+        "name": "agentpool1",
+        "count": 2,
+        "vmSize": "Standard_D2s_v3"
+      }
+    ],
+    "linuxProfile": {
+      "runUnattendedUpgradesOnBootstrap": false,
+      "adminUsername": "azureuser",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData": ""
+          }
+        ]
+      }
+    }
+  }
+}

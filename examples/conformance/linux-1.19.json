@@ -1,0 +1,30 @@
+{
+  "apiVersion": "vlabs",
+  "properties": {
+    "orchestratorProfile": {
+      "orchestratorRelease": "1.19"
+    },
+    "masterProfile": {
+      "count": 1,
+      "vmSize": "Standard_D2s_v3"
+    },
+    "agentPoolProfiles": [
+      {
+        "name": "agentpool1",
+        "count": 2,
+        "vmSize": "Standard_D2s_v3"
+      }
+    ],
+    "linuxProfile": {
+      "runUnattendedUpgradesOnBootstrap": false,
+      "adminUsername": "azureuser",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData": ""
+          }
+        ]
+      }
+    }
+  }
+}
